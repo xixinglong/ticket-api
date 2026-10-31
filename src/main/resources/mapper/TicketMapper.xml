@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ticket.TicketMapper">
+    <!-- 显式指定列与 Java 属性的对应关系，特别是 creator_id。 -->
+    <resultMap id="ticketRow" type="com.example.ticket.TicketRow">
+        <id column="id" property="id"/>
+        <result column="title" property="title"/>
+        <result column="description" property="description"/>
+        <result column="creator_id" property="creatorId"/>
+        <result column="assignee_id" property="assigneeId"/>
+        <result column="status" property="status"/>
+    </resultMap>
+
+    <!-- 不传 id，由 MySQL 自增；生成的主键写回参数对象的 id 属性。 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO tickets (title, description, creator_id, status)
+        VALUES (#{title}, #{description,jdbcType=LONGVARCHAR}, #{creatorId}, #{status})
+    </insert>
+
+    <!-- #{} 绑定参数，不将用户输入拼接成 SQL。 -->
+    <select id="findById" resultMap="ticketRow">
+        SELECT id, title, description, creator_id, assignee_id, status
+        FROM tickets
+        WHERE id = #{id}
+    </select>
+    <!-- 仅创建人可以取消 OPEN 工单，Service 必须检查受影响行数。 -->
+    <update id="cancelOpenTicket">
+        UPDATE tickets
+        SET status = 'CANCELLED'
+        WHERE id = #{id}
+          AND creator_id = #{actorId}
+          AND status = 'OPEN'
+    </update>
+    <!-- InnoDB 对同一行的更新会串行检查条件，只有一个请求能更新成功。 -->
+    <update id="claimOpenTicket">
+        UPDATE tickets
+        SET status = 'IN_PROGRESS', assignee_id = #{actorId}
+        WHERE id = #{id}
+          AND status = 'OPEN'
+          AND assignee_id IS NULL
+    </update>
+    <!-- 身份和状态都放入 UPDATE 条件，避免检查后被其他请求改变。 -->
+    <update id="resolveAssignedTicket">
+        UPDATE tickets
+        SET status = 'RESOLVED'
+        WHERE id = #{id}
+          AND assignee_id = #{actorId}
+          AND status = 'IN_PROGRESS'
+    </update>
+    <!-- 总数和分页共用权限条件；先在数据库过滤，再分页，不能取出所有人的数据后过滤。 -->
+    <sql id="visibleCondition">
+        <choose>
+            <when test="userRole">
+                creator_id = #{actorId}
+            </when>
+            <otherwise>
+                ((status = 'OPEN' AND assignee_id IS NULL) OR assignee_id = #{actorId})
+            </otherwise>
+        </choose>
+    </sql>
+
+    <select id="countVisible" resultType="long">
+        SELECT COUNT(*) FROM tickets
+        WHERE <include refid="visibleCondition"/>
+    </select>
+
+    <select id="findVisible" resultMap="ticketRow">
+        SELECT id, title, description, creator_id, assignee_id, status
+        FROM tickets
+        WHERE <include refid="visibleCondition"/>
+        ORDER BY id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+</mapper>

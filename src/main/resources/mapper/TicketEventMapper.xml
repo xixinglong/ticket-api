@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ticket.TicketEventMapper">
+    <!-- 编号和操作时间使用数据库默认值；操作类型由业务层决定。 -->
+    <insert id="insert">
+        INSERT INTO ticket_events (ticket_id, actor_id, action)
+        VALUES (#{ticketId}, #{actorId}, #{action})
+    </insert>
+</mapper>

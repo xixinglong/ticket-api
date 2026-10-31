@@ -30,6 +30,28 @@
 		<java.version>21</java.version>
 	</properties>
 	<dependencies>
+		<!-- 登录、Session 与 CSRF 防护；版本由 Spring Boot 管理。 -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- MyBatis 4.1 系列与本项目 Spring Boot 4.1 配套。 -->
+		<dependency>
+			<groupId>org.mybatis.spring.boot</groupId>
+			<artifactId>mybatis-spring-boot-starter</artifactId>
+			<version>4.1.0</version>
+		</dependency>
+		<!-- 驱动版本由 Spring Boot 管理，运行时用于连接 MySQL。 -->
+		<dependency>
+			<groupId>com.mysql</groupId>
+			<artifactId>mysql-connector-j</artifactId>
+			<scope>runtime</scope>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>

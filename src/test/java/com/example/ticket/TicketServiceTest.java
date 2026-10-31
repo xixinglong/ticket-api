@@ -1,89 +1,99 @@
 package com.example.ticket;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
+
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 /**
- * Service 单元测试：直接 new 对象，不启动 Spring，也不发送 HTTP 请求。
- * 每个测试创建独立的 Service，避免内存数据和编号相互影响。
- * 这些测试检查业务行为，不验证 Controller 的 201、400、404 等状态码。
+ * 单元测试使用模拟 Mapper，不启动 Spring、不连接数据库。
+ * 这里只验证校验与数据转换，真实 SQL 的保存和查询另由集成测试验证。
  */
 class TicketServiceTest {
-    // 创建后可查到，并且标题两端空白已去除、初始状态为 OPEN。
-    @Test
-    void createdTicketCanBeFound() {
-        TicketService service = new TicketService();
-        TicketResponse created = service.create("  Broken page  ", null);
-        TicketResponse found = service.find(created.id()).orElseThrow();
-        assertEquals("Broken page", found.title());
-        assertEquals("OPEN", found.status());
+    private final TicketMapper mapper = mock(TicketMapper.class);
+    private final TicketEventMapper eventMapper = mock(TicketEventMapper.class);
+    private final CurrentUser currentUser = mock(CurrentUser.class);
+    private final TicketService service = new TicketService(mapper, eventMapper, currentUser);
+
+    @BeforeEach
+    void signIn() {
+        when(currentUser.requireUser()).thenReturn(TestIdentity.alice());
+        when(currentUser.requireReader()).thenReturn(TestIdentity.alice());
     }
 
-    // assertThrows 验证调用会抛出指定异常；这里只检查 Service 的校验。
     @Test
-    void blankTitleIsRejected() {
-        TicketService service = new TicketService();
-        assertThrows(IllegalArgumentException.class,
-                () -> service.create("   ", null));
+    void creationTrimsTitleAndPreservesDescription() {
+        when(mapper.insert(any(TicketRow.class))).thenAnswer(invocation -> {
+            TicketRow row = invocation.getArgument(0);
+            assertEquals("Broken page", row.getTitle());
+            assertEquals("OPEN", row.getStatus());
+            assertEquals(Long.valueOf(1001L), row.getCreatorId());
+            assertEquals("Blank after signing in", row.getDescription());
+            row.setId(42L); // 模拟 JDBC 将数据库生成的主键回填到对象。
+            return 1;
+        });
+        TicketResponse created = service.create("  Broken page  ", "Blank after signing in");
+        assertEquals(new TicketResponse("42", "Broken page", "OPEN", "Blank after signing in"), created);
+        verify(mapper).insert(any(TicketRow.class));
     }
 
-    // 1. null 标题应该被拒绝
-    @Test
-    void nullTitleIsRejected() {
-        TicketService service = new TicketService();
-
-        assertThrows(IllegalArgumentException.class,
-                () -> service.create(null, null));
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void blankOrNullTitleIsRejected(String title) {
+        assertThrows(IllegalArgumentException.class, () -> service.create(title, null));
+        verifyNoInteractions(mapper); // 非法输入不能写入数据库。
     }
 
-    // 2. 超过 100 个字符的标题应该被拒绝
     @Test
     void titleLongerThan100CharactersIsRejected() {
-        TicketService service = new TicketService();
-        String title = "a".repeat(101);
-
-        assertThrows(IllegalArgumentException.class,
-                () -> service.create(title, null));
+        assertThrows(IllegalArgumentException.class, () -> service.create("a".repeat(101), null));
+        verifyNoInteractions(mapper);
     }
 
-    // 3. 查询不存在的工单，应该返回空 Optional
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"not-found", "1abc", "", "0", "-1", "9223372036854775808"})
+    void invalidIdReturnsEmptyWithoutQueryingDatabase(String id) {
+        assertTrue(service.find(id).isEmpty());
+        verifyNoInteractions(mapper);
+    }
+
     @Test
     void missingTicketReturnsEmpty() {
-        TicketService service = new TicketService();
-
-        assertTrue(service.find("not-found").isEmpty());
+        when(mapper.findById(99L)).thenReturn(null);
+        assertTrue(service.find("99").isEmpty());
+        verify(mapper).findById(99L);
     }
 
-    // 4. 连续创建两张工单，编号不同，并且分别能查询到
     @Test
-    void twoCreatedTicketsHaveDifferentIdsAndCanBeFound() {
-        TicketService service = new TicketService();
-
-        TicketResponse first = service.create("First ticket", null);
-        TicketResponse second = service.create("Second ticket", null);
-
-        assertNotEquals(first.id(), second.id());
-
-        // orElseThrow 保证结果存在；assertEquals 再按 record 字段比较数据是否一致。
-        TicketResponse foundFirst =
-                service.find(first.id()).orElseThrow();
-        TicketResponse foundSecond =
-                service.find(second.id()).orElseThrow();
-
-        assertEquals(first, foundFirst);
-        assertEquals(second, foundSecond);
+    void queryConvertsDatabaseRowToResponse() {
+        TicketRow row = new TicketRow();
+        row.setId(42L);
+        row.setCreatorId(1001L);
+        row.setTitle("Broken page");
+        row.setStatus("OPEN");
+        row.setDescription("Blank after signing in");
+        when(mapper.findById(42L)).thenReturn(row);
+        assertEquals(new TicketResponse("42", "Broken page", "OPEN", "Blank after signing in"),
+                service.find("42").orElseThrow());
     }
 
-    // 同时验证创建响应和查询结果，确保 description 在保存、读取过程中没有丢失。
+    // 模拟查询后状态被其他请求修改；最终 UPDATE 的行数才决定能否成功。
     @Test
-    void descriptionIsPreserved() {
-        TicketService service = new TicketService();
-
-        TicketResponse created =
-                service.create("Login page is blank", "Blank after signing in");
-        TicketResponse found = service.find(created.id()).orElseThrow();
-
-        assertEquals("Blank after signing in", created.description());
-        assertEquals("Blank after signing in", found.description());
+    void cancellationWithNoChangedRowMustNotWriteEvent() {
+        TicketRow row = new TicketRow();
+        row.setId(42L);
+        row.setCreatorId(1001L);
+        row.setStatus("OPEN");
+        when(mapper.findById(42L)).thenReturn(row);
+        when(mapper.cancelOpenTicket(42L, 1001L)).thenReturn(0);
+        assertThrows(TicketConflictException.class, () -> service.cancel("42"));
+        verifyNoInteractions(eventMapper);
     }
 }

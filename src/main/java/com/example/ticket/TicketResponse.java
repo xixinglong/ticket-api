@@ -2,7 +2,7 @@ package com.example.ticket;
 
 /**
  * 创建和查询接口共用的响应数据，字段会输出到 JSON 中。
- * 当前练习也将这个不可变 record 存入内存 Map；它不是数据库实体。
+ * 此 record 用于接口输出；数据库行使用单独的 TicketRow 表示。
  * record 自动生成按字段比较的 equals，测试中可直接比较两个工单。
  */
 public record TicketResponse(
