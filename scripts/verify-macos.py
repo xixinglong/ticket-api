@@ -104,6 +104,7 @@ def stop(process):
 with socket.socket() as probe:
     probe.bind(('127.0.0.1', 18080))
 sql(f'CREATE DATABASE `{DB}` CHARACTER SET utf8mb4; USE `{DB}`;\n' + (ROOT / 'sql/01-schema.sql').read_text())
+sql(f"GRANT SELECT, INSERT, UPDATE, DELETE ON `{DB}`.* TO 'ticket_app'@'localhost';")
 print('Isolated database:', DB, flush=True)
 subprocess.run(['sh', './mvnw', '-B', 'dependency:build-classpath', '-Dmdep.outputFile=target/migration-classpath.txt'],
                cwd=ROOT, env=env, stdout=subprocess.DEVNULL, check=True)

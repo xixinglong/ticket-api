@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Ticket Lab · 工单工作台</title><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script></head>
+<body>
+<header><a class="brand" href="/">▦ <strong>Ticket Lab</strong><span>工单工作台</span></a><div id="identity"></div></header>
+<main>
+<section id="login-view" class="login"><div class="login-heading"><span class="eyebrow">TICKET LAB</span><h1>登录工作台</h1></div><form id="login-form"><label>用户名<input name="username" autocomplete="username" required maxlength="64"></label><label>密码<input name="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit">登录</button></form></section>
+<section id="workspace" hidden><div class="heading"><div><span class="eyebrow" id="workspace-role"></span><h1 id="workspace-title">工单</h1></div><div class="actions"><button id="refresh" title="刷新列表">刷新</button><button id="create" class="primary">新建工单</button></div></div><div class="table-wrap"><table><thead id="table-head"></thead><tbody id="table-body"></tbody></table><div id="empty" hidden>暂无记录</div></div><footer class="pagination"><span id="total"></span><div class="actions"><label class="page-size">每页<select id="size"><option>10</option><option>20</option><option>50</option></select>条</label><button id="previous" aria-label="上一页">←</button><span id="page"></span><button id="next" aria-label="下一页">→</button></div></footer></section>
+<div id="notice" role="status" aria-live="polite" hidden></div>
+</main>
+<dialog id="editor"><form id="editor-form"><div class="dialog-heading"><h2 id="dialog-title"></h2><button type="button" id="close-dialog" aria-label="关闭">×</button></div><div id="fields"></div><div id="dialog-error" role="alert" hidden></div><div class="dialog-footer"><button type="button" id="cancel-dialog">取消</button><button type="submit" class="primary" id="save">保存</button></div></form></dialog>
+</body></html>

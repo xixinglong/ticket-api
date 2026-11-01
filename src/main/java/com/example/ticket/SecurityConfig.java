@@ -44,6 +44,7 @@ public class SecurityConfig {
                 // 错误转发放行，避免原来的 404/409 被安全过滤器改写为认证错误。
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .requestMatchers(HttpMethod.GET, "/", "/index.html", "/app.css", "/app.js", "/favicon.svg").permitAll()
                         .requestMatchers("/api/csrf", "/api/login").permitAll()
                         .requestMatchers("/api/admin/users", "/api/admin/users/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/me").hasAnyRole("USER", "AGENT", "ADMIN")
