@@ -5,7 +5,6 @@ import org.springframework.http.HttpMethod;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -25,28 +24,15 @@ public class SecurityConfig {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
 
-    /** 先用四个内存账号练习 USER / AGENT 权限；真实密码只从启动环境读取，不写进源码。 */
+    /** 身份编号和角色从数据库读取，禁用账号由认证提供者拒绝。 */
     @Bean
-    UserDetailsService userDetailsService(PasswordEncoder encoder,
-            @Value("${app.security.alice-password}") String alicePassword,
-            @Value("${app.security.bob-password}") String bobPassword,
-            @Value("${app.security.agent1-password}") String agent1Password,
-            @Value("${app.security.agent2-password}") String agent2Password) {
-        if (alicePassword.isBlank() || bobPassword.isBlank()
-                || agent1Password.isBlank() || agent2Password.isBlank()) {
-            throw new IllegalArgumentException("练习账号密码不能为空");
-        }
-        String aliceHash = encoder.encode(alicePassword);
-        String bobHash = encoder.encode(bobPassword);
-        String agent1Hash = encoder.encode(agent1Password);
-        String agent2Hash = encoder.encode(agent2Password);
-        // 每次返回新身份对象，避免认证后擦除凭据影响后续登录。
-        return username -> switch (username) {
-            case "alice" -> new TicketUser(1001L, "alice", aliceHash, "USER");
-            case "bob" -> new TicketUser(1002L, "bob", bobHash, "USER");
-            case "agent1" -> new TicketUser(2001L, "agent1", agent1Hash, "AGENT");
-            case "agent2" -> new TicketUser(2002L, "agent2", agent2Hash, "AGENT");
-            default -> throw new UsernameNotFoundException("用户名或密码错误");
+    UserDetailsService userDetailsService(UserMapper users) {
+        return username -> {
+            UserRow row = users.findByUsername(username);
+            if (row == null) {
+                throw new UsernameNotFoundException("用户名或密码错误");
+            }
+            return new TicketUser(row.id(), row.username(), row.passwordHash(), row.role(), row.enabled());
         };
     }
 

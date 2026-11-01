@@ -46,6 +46,11 @@ class TicketPaginationTests {
         other = new TicketUser(base + 1, "page-other", "unused", "USER");
         agent = new TicketUser(base + 2, "page-agent", "unused", "AGENT");
         otherAgent = new TicketUser(base + 3, "page-agent-other", "unused", "AGENT");
+        for (TicketUser account : List.of(owner, other, agent, otherAgent)) {
+            jdbc.update("INSERT INTO users(id,username,password_hash,role,enabled) VALUES (?,?,?,?,FALSE)",
+                    account.getId(), account.getUsername(), "disabled",
+                    account.getAuthorities().iterator().next().getAuthority().substring(5));
+        }
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
