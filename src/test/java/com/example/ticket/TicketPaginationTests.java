@@ -47,7 +47,7 @@ class TicketPaginationTests {
         agent = new TicketUser(base + 2, "page-agent", "unused", "AGENT");
         otherAgent = new TicketUser(base + 3, "page-agent-other", "unused", "AGENT");
         for (TicketUser account : List.of(owner, other, agent, otherAgent)) {
-            jdbc.update("INSERT INTO users(id,username,password_hash,role,enabled) VALUES (?,?,?,?,FALSE)",
+            jdbc.update("INSERT INTO users(id,username,password_hash,role,enabled) VALUES (?,?,?,?,TRUE)",
                     account.getId(), account.getUsername(), "disabled",
                     account.getAuthorities().iterator().next().getAuthority().substring(5));
         }
@@ -138,7 +138,7 @@ class TicketPaginationTests {
     void unknownRoleAndAnonymousCannotReadList() throws Exception {
         mvc.perform(get("/api/tickets")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/tickets").with(user(new TicketUser(999L, "outsider", "unused", "OTHER"))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @ParameterizedTest

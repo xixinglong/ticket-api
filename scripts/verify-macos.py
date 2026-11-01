@@ -43,7 +43,7 @@ class Client:
             self.request('/api/login', 204, urllib.parse.urlencode(
                 {'username': name, 'password': passwords[name]}).encode(), form=True)
 
-    def request(self, path, expected=200, data=None, form=False, csrf=True):
+    def request(self, path, expected=200, data=None, form=False, csrf=True, method=None):
         headers = {}
         if data is not None and csrf:
             token = self.request('/api/csrf')
@@ -52,7 +52,7 @@ class Client:
             headers['Content-Type'] = 'application/x-www-form-urlencoded' if form else 'application/json'
             if not isinstance(data, bytes):
                 data = json.dumps(data).encode()
-        request = urllib.request.Request('http://127.0.0.1:18080' + path, data=data, headers=headers)
+        request = urllib.request.Request('http://127.0.0.1:18080' + path, data=data, headers=headers, method=method)
         try:
             response = self.client.open(request, timeout=15)
         except urllib.error.HTTPError as error:
@@ -113,6 +113,12 @@ test_env = env.copy()
 test_env.update({'LAB_' + name.upper() + '_PASSWORD': 'test-' + name + '-password' for name in passwords})
 subprocess.run(migrate, cwd=ROOT, env=test_env, check=True)
 subprocess.run(migrate, cwd=ROOT, env=test_env, check=True)
+sql(f'USE `{DB}`;\n' + (ROOT / 'sql/04-user-management.sql').read_text())
+admin_env = env.copy()
+admin_env.update(ADMIN_USERNAME='admin', ADMIN_PASSWORD='test-admin-password')
+bootstrap = [str(JAVA_HOME / 'bin/java'), '--class-path', classpath, 'scripts/BootstrapAdmin.java']
+subprocess.run(bootstrap, cwd=ROOT, env=admin_env, check=True)
+subprocess.run(bootstrap, cwd=ROOT, env=admin_env, check=True)
 with (OUT / 'maven.log').open('w') as log:
     subprocess.run(['sh', './mvnw', '-B', 'package'], cwd=ROOT, env=env,
                    stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -146,6 +152,29 @@ try:
     assert before['status'] == 'RESOLVED'
     events = sql(f"USE `{DB}`; SELECT ticket_id,action FROM ticket_events WHERE ticket_id IN ({first},{second}) ORDER BY id;")
     assert events.count('CANCEL') == events.count('CLAIM') == events.count('RESOLVE') == 1
+    passwords['admin'] = 'test-admin-password'
+    administrator = Client('admin')
+    administrator.request('/api/tickets', 403)
+    alice.request('/api/admin/users', 403)
+    created = administrator.request('/api/admin/users', 201, {
+        'username': 'managed-http', 'password': 'managed-http-password', 'role': 'AGENT'})
+    assert set(created) == {'id', 'username', 'role', 'enabled'}
+    passwords['managed-http'] = 'managed-http-password'
+    managed = Client('managed-http')
+    base = '/api/admin/users/' + created['id']
+    administrator.request(base + '/enabled', 204, {'enabled': False}, method='PATCH')
+    administrator.request(base + '/enabled', 204, {'enabled': True}, method='PATCH')
+    managed.request('/api/me', 401)
+    managed = Client('managed-http')
+    administrator.request(base + '/reset-password', 204, {'password': 'replacement-http-password'})
+    managed.request('/api/me', 401)
+    Client().request('/api/login', 401, urllib.parse.urlencode({
+        'username': 'managed-http', 'password': 'managed-http-password'}).encode(), form=True)
+    passwords['managed-http'] = 'replacement-http-password'
+    Client('managed-http').request('/api/me')
+    page = administrator.request('/api/admin/users?size=100')
+    assert any(item['id'] == created['id'] for item in page['items'])
+    assert all(set(item) == {'id', 'username', 'role', 'enabled'} for item in page['items'])
 finally:
     stop(process)
 process = start('restart')
@@ -153,6 +182,8 @@ try:
     ready(process)
     alice.request('/api/me', 401)
     assert Client('alice').request('/api/tickets/' + second) == before
+    Client('managed-http').request('/api/me')
+    Client('admin').request('/api/admin/users')
 finally:
     stop(process)
 process = start('absent-config', {'DB_URL': None})
@@ -175,6 +206,7 @@ sql(f"USE `{DB}`; INSERT INTO users(id,username,password_hash,role,enabled) WITH
 sql(f"USE `{DB}`; INSERT INTO tickets(title,creator_id,status) SELECT 'Explain fixture', 1000 + MOD(a.n + 10*b.n + 100*c.n + 1000*d.n,100), 'OPEN' FROM (SELECT 0 n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) a CROSS JOIN (SELECT 0 n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) b CROSS JOIN (SELECT 0 n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) c CROSS JOIN (SELECT 0 n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) d;")
 explain = sql(f'USE `{DB}`; ANALYZE TABLE tickets; EXPLAIN SELECT * FROM tickets WHERE creator_id=1001 ORDER BY id DESC LIMIT 20 OFFSET 0; EXPLAIN SELECT * FROM tickets WHERE (status=\'OPEN\' AND assignee_id IS NULL) OR assignee_id=2001 ORDER BY id DESC LIMIT 20 OFFSET 0;')
 result = {'database': DB, 'tests': totals, 'http': 'passed', 'restart': 'passed',
+          'user_management_http': 'create, pagination, role isolation, disable/enable, reset and old-session rejection passed',
           'absent_database_configuration': 'startup rejected',
           'database_unavailable': 'Login rejected with safe HTTP 401',
           'events': events, 'explain': explain,

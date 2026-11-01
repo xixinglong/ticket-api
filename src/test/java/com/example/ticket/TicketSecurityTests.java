@@ -132,7 +132,7 @@ class TicketSecurityTests {
 
     @Test
     void agentRoleCannotUseUserEndpoints() throws Exception {
-        TicketUser agent = new TicketUser(2001L, "agent", "unused", "AGENT");
+        TicketUser agent = new TicketUser(2001L, "agent1", "unused", "AGENT");
         mvc.perform(post("/api/tickets").with(user(agent)).with(csrf())
                 .contentType("application/json").content("{\"title\":\"Forbidden creation\"}"))
                 .andExpect(status().isForbidden());

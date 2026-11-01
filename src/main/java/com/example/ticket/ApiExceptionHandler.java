@@ -22,6 +22,11 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
+    @ExceptionHandler(UserManagementException.class)
+    ResponseEntity<Object> userManagement(UserManagementException exception, HttpServletRequest request) {
+        return error(exception.status, exception.code, exception.getMessage(), request);
+    }
+
     @ExceptionHandler(TicketNotFoundException.class)
     ResponseEntity<Object> notFound(TicketNotFoundException exception, HttpServletRequest request) {
         return error(404, "TICKET_NOT_FOUND", "工单不存在或不可见", request);

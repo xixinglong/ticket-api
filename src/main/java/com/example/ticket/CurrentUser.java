@@ -19,13 +19,26 @@ public class CurrentUser {
 
     /** 查询身份和详情允许两种课程角色，具体工单的可见性仍由业务层判断。 */
     public TicketUser requireReader() {
+        TicketUser user = requireAuthenticated();
+        if (!hasRole(user, "USER") && !hasRole(user, "AGENT")) {
+            throw new AccessDeniedException("当前角色不能执行此操作");
+        }
+        return user;
+    }
+
+    public TicketUser requireAdmin() {
+        TicketUser user = requireAuthenticated();
+        if (!hasRole(user, "ADMIN")) {
+            throw new AccessDeniedException("当前角色不能执行此操作");
+        }
+        return user;
+    }
+
+    public TicketUser requireAuthenticated() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()
                 || !(authentication.getPrincipal() instanceof TicketUser user)) {
             throw new AuthenticationCredentialsNotFoundException("请先登录");
-        }
-        if (!hasRole(user, "USER") && !hasRole(user, "AGENT")) {
-            throw new AccessDeniedException("当前角色不能执行此操作");
         }
         return user;
     }

@@ -75,7 +75,7 @@ class DatabaseUserTests {
         assertThrows(DataIntegrityViolationException.class, () -> jdbc.update(
                 "INSERT INTO users(id,username,password_hash,role) VALUES (3001,'alice','unused','USER')"));
         var failure = assertThrows(org.springframework.dao.DataAccessException.class,
-                () -> jdbc.update("UPDATE users SET role='ADMIN' WHERE id=1001"));
+                () -> jdbc.update("UPDATE users SET role='INVALID' WHERE id=1001"));
         assertInstanceOf(java.sql.SQLException.class, failure.getMostSpecificCause());
         assertEquals(3819, ((java.sql.SQLException) failure.getMostSpecificCause()).getErrorCode());
     }

@@ -23,7 +23,7 @@ public class AuthController {
 
     @GetMapping("/api/me")
     public UserResponse me() {
-        TicketUser user = currentUser.requireReader();
+        TicketUser user = currentUser.requireAuthenticated();
         // 只返回用于识别权限的角色名；业务操作仍在服务端独立校验。
         List<String> roles = user.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
